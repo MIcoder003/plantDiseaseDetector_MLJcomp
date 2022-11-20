@@ -4,7 +4,6 @@
     "version":"1.0.0",
     "description":"\"Plant Disease Detection\"",
     "main":"main.js",
-    "type": "module",
     "scripts":{
         "start":"electron ."
     },
