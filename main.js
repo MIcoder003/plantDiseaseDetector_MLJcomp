@@ -1,94 +1,101 @@
-const path = require('path');
-const { app, BrowserWindow, Menu, ipcMain} = require('electron');
-const fs = require('os') 
 
-const isDev = process.env.NODE_ENV !== 'production';
+const path = require('path');
+const {app, BrowserWindow, Menu, ipcMain } = require('electron');
+
+const isDev = process.env.NODE_ENV !== 'production'; 
 const isMac = process.platform === 'darwin';
 
 const axios = require('axios');
+const FormData = require('form-data');
 
-import FormData  from 'form-data';
 
+let img_path, img_name, leaf_health;
 
-let mainWindow;
-
-//Create the manin Window 
+//Create main window
 function createMainWindow() {
-    mainWindow = new BrowserWindow({
-        title: 'Plant Disease Detector',
+    const mainWindow = new BrowserWindow({
+        title: 'Plant disease Detector',
         width: isDev ? 1000 : 500,
         height: 600,
         webPreferences: {
-            contextIsolation: true,
-            nodeIntegration: true,  
+            contextIsolation:true,
+            nodeIntegration: true,
             preload: path.join(__dirname, 'preload.js')
-        },
+        }
     });
 
-    //Open devtools if in dev env
-    if(isDev){
-        mainWindow.webContents.openDevTools();
-    }
-    mainWindow.loadFile(path.join(__dirname, './renderer/index.html'));
+//Open Devtools
+if(isDev){
+    mainWindow.webContents.openDevTools();
 }
 
-// Create Newwin ``
-// App is ready 
+mainWindow.loadFile(path.join(__dirname, './renderer/index.html'));
+}
+
+
+//App is ready
 app.whenReady().then(() => {
     createMainWindow();
 
-//Implement menu 
-const mainMenu = Menu.builfromTemplate(menu);
-Menu.setApplicationMenu(mainMenu);
+    //Implement menu
+    const mainMenu = Menu.buildFromTemplate(menu);
+    Menu.setApplicationMenu(mainMenu);
 
-//Remove mainWIndow from memory on close
-mainWindow.on('closed', () => (mainWindow = null)); 
-
-    app.on('activate', ()=> {
+    app.on('activate', () => {
         if(BrowserWindow.getAllWindows().length === 0){
             createMainWindow();
         }
-    })
+    });
 });
 
-//Menu template
-const menu  = [
+//Menu Template
+const menu = [
     {
         role: 'fileMenu',
-    },
-]; 
+}
+];
 
-// Respond to ipcRenderer detect
-ipcMain.on('image:detect', (e, options) => {
-    console.log(options)
-   fetchdata(options);
-});
+ // Respond to ipcRenderer detect
+ ipcMain.on('image:detect', (e, options) => {
+    leaf_health = detectDisease(options); 
+    //console.log(options)
+ });
 
-async function fetchdata(img_path) {
-    const data = new FormData(); 
-    data.append('image', 
-    {
-        uri: image_path, 
-        name: 'userProfile.jpg',
+//function to get result from server //COMMENT
+async function detectDisease({path, name}) {
+    try{
+    const data = new FormData();
+    data.append('image',
+      {
+        uri: path,
+        name: name,
         type: 'image/jpg'
-    
-    });
+      });
 
     const res = await axios.post('http://192.168.105.159:80/uploadImage', data, {
-        headers: {
-            'accept': 'application/json',
-            'Accept-Language': 'en-US,en;q=0.8',
-            'Content-Type': `multipart/form-data; 
-            boundary=${data._boundary}`,
-        }
+      headers: {
+        'accept': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.8',
+        'Content-Type': `multipart/form-data; boundary=${data._boundary}`,
+      }
     })
+    //Send success to renderer
+    mainWindow.webContents.send('image:done');
 
     setResult(res.data.diseased)
-} 
+} catch(err){
+    console.log("not connected to server");
+}
+  }
 
-
-app.on('window-all-closed', () =>{
+// quit
+app.on('window-all-closed', () => {
     if(!isMac){
         app.quit()
     }
-})
+});
+
+//open window if none are open
+app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+  });
